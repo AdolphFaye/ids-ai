@@ -1,0 +1,71 @@
+# ─── Configuration du Pipeline Data Engineering ──────────────────────────────
+# Alioune Badara Adolphe Faye
+
+pipeline:
+  name: "IDS Behavioral AI — Data Engineering Pipeline"
+  version: "1.0.0"
+  author: "Alioune Badara Adolphe Faye"
+
+paths:
+  raw_data:       "data/raw/"
+  processed_data: "data/processed/"
+  features_data:  "data/features/"
+
+datasets:
+  supported:
+    - "CICIDS2017"
+    - "CICIDS2018"
+    - "NSL-KDD"
+  label_column:
+    CICIDS2017: "Label"
+    CICIDS2018: "Label"
+    NSL-KDD:    "class"
+  normal_label:
+    CICIDS2017: "BENIGN"
+    CICIDS2018: "Benign"
+    NSL-KDD:    "normal"
+
+preprocessing:
+  missing_values:
+    strategy: "median"          # mean | median | drop | fill_zero
+    threshold_drop_col: 0.5     # Drop colonne si > 50% de NaN
+  normalization:
+    method: "standard"          # standard | minmax | robust
+  encoding:
+    method: "label"             # label | onehot
+  remove_duplicates: true
+  remove_infinite: true
+
+feature_engineering:
+  time_window_seconds: 5        # Fenêtre temporelle configurable
+  aggregate_by:
+    - "src_ip"
+    - "dst_ip"
+    - "protocol"
+  statistical_features:
+    - "mean"
+    - "std"
+    - "min"
+    - "max"
+    - "median"
+    - "count"
+  behavioral_features:
+    - "packet_rate"
+    - "byte_rate"
+    - "flow_duration"
+    - "inter_arrival_time"
+
+class_imbalance:
+  strategy: "smote"             # smote | class_weight | none
+  sampling_ratio: 0.3           # Ratio minority/majority après SMOTE
+
+security:
+  clear_raw_after_processing: true   # Ne pas persister les données en clair
+  encrypt_temp_files: false
+
+output:
+  format: "parquet"             # parquet | csv
+  train_ratio: 0.7
+  val_ratio:   0.15
+  test_ratio:  0.15
+  random_state: 42
