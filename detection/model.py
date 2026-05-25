@@ -1,20 +1,18 @@
 """
 detection/model.py
 ───────────────────
-Entraînement et inférence du modèle Isolation Forest.
+Entraînement et inférence des modèles de détection.
 
-Isolation Forest – principe :
-  • Construit N arbres de décision aléatoires
-  • Isole chaque point en le séparant des autres par des coupes
-  • Les anomalies s'isolent en moins d'étapes (régions peu denses)
-  • Le score d'anomalie est inversement proportionnel
-    à la profondeur moyenne d'isolation dans les arbres
-  • Seuil de décision : configurable via le paramètre contamination
+Modèles disponibles :
+  • Isolation Forest – non supervisé, détecte les anomalies inconnues
+  • Random Forest    – supervisé, détecte les attaques connues avec haute précision
 """
 
 import numpy as np
-from sklearn.ensemble import IsolationForest
+import joblib
+from sklearn.ensemble import IsolationForest, RandomForestClassifier
 
+#  ISOLATION FOREST
 
 def train_model(X_scaled: np.ndarray,
                 contamination: float = 0.05,
@@ -25,14 +23,14 @@ def train_model(X_scaled: np.ndarray,
 
     Paramètres
     ----------
-    X_scaled      : np.ndarray  – features normalisées
-    contamination : float       – proportion estimée d'anomalies (0.0–0.5)
-    n_estimators  : int         – nombre d'arbres dans la forêt
-    random_state  : int         – graine pour la reproductibilité
+    X_scaled      : features normalisées
+    contamination : proportion estimée d'anomalies (0.0–0.5)
+    n_estimators  : nombre d'arbres
+    random_state  : graine pour la reproductibilité
 
     Retourne
     --------
-    model : IsolationForest fitted
+    model : IsolationForest entraîné
     """
     model = IsolationForest(
         n_estimators=n_estimators,
@@ -47,26 +45,12 @@ def train_model(X_scaled: np.ndarray,
 def predict(model: IsolationForest,
             X_scaled: np.ndarray):
     """
-    Prédit la classe de chaque connexion et calcule son score d'anomalie.
-
-    Isolation Forest retourne :
-      +1  → inlier (connexion normale)
-      -1  → outlier (anomalie / attaque)
-
-    On convertit en convention cybersécurité :
-      0 → Normal
-      1 → Attaque
-
-    Paramètres
-    ----------
-    model    : IsolationForest fitted
-    X_scaled : np.ndarray – features normalisées
+    Prédit la classe de chaque connexion avec Isolation Forest.
 
     Retourne
     --------
-    predictions : np.ndarray int  – 0 (normal) ou 1 (attaque)
+    predictions : np.ndarray int   – 0 (normal) ou 1 (attaque)
     scores      : np.ndarray float – score d'anomalie brut
-                  (plus négatif = plus suspect)
     """
     raw_preds   = model.predict(X_scaled)
     scores      = model.score_samples(X_scaled)
@@ -74,16 +58,103 @@ def predict(model: IsolationForest,
     return predictions, scores
 
 
-def predict_one(model: IsolationForest,
+def predict_one(model,
                 conn_scaled: np.ndarray):
     """
-    Prédit la classe d'une seule connexion normalisée.
+    Prédit la classe d'une seule connexion.
+    Fonctionne avec Isolation Forest ET Random Forest.
 
     Retourne
     --------
     is_attack : bool
     score     : float
     """
-    raw   = model.predict(conn_scaled)[0]
-    score = model.score_samples(conn_scaled)[0]
-    return raw == -1, score
+    # Isolation Forest
+    if isinstance(model, IsolationForest):
+        raw   = model.predict(conn_scaled)[0]
+        score = model.score_samples(conn_scaled)[0]
+        return raw == -1, score
+
+    # Random Forest
+    else:
+        proba     = model.predict_proba(conn_scaled)[0][1]
+        is_attack = proba >= 0.5
+        return is_attack, float(proba)
+
+
+#  RANDOM FOREST
+
+def train_random_forest(X_scaled: np.ndarray,
+                        y_train: np.ndarray,
+                        n_estimators: int = 100,
+                        random_state: int = 42) -> RandomForestClassifier:
+    """
+    Entraîne un modèle Random Forest supervisé.
+
+    Paramètres
+    ----------
+    X_scaled     : features normalisées
+    y_train      : labels (0=normal, 1=attaque)
+    n_estimators : nombre d'arbres
+    random_state : graine pour la reproductibilité
+
+    Retourne
+    --------
+    model : RandomForestClassifier entraîné
+    """
+    model = RandomForestClassifier(
+        n_estimators=n_estimators,
+        random_state=random_state,
+        n_jobs=-1,
+    )
+    model.fit(X_scaled, y_train)
+    return model
+
+
+def predict_rf(model: RandomForestClassifier,
+               X_scaled: np.ndarray):
+    """
+    Prédit la classe de chaque connexion avec Random Forest.
+
+    Retourne
+    --------
+    predictions : np.ndarray int   – 0 (normal) ou 1 (attaque)
+    probas      : np.ndarray float – probabilité d'être une attaque
+    """
+    predictions = model.predict(X_scaled)
+    probas      = model.predict_proba(X_scaled)[:, 1]
+    return predictions, probas
+
+
+
+#  SAUVEGARDE / CHARGEMENT
+
+
+def save_model(model, path: str):
+    """
+    Sauvegarde un modèle entraîné sur le disque.
+
+    Paramètres
+    ----------
+    model : modèle entraîné (IsolationForest ou RandomForest)
+    path  : chemin du fichier .pkl
+    """
+    joblib.dump(model, path)
+    print(f"  Modèle sauvegardé : {path}")
+
+
+def load_model(path: str):
+    """
+    Charge un modèle depuis le disque.
+
+    Paramètres
+    ----------
+    path : chemin du fichier .pkl
+
+    Retourne
+    --------
+    model : modèle chargé prêt à l'emploi
+    """
+    model = joblib.load(path)
+    print(f"  Modèle chargé : {path}")
+    return model
