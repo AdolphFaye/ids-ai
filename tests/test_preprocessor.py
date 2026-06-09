@@ -1,127 +1,117 @@
 """
 tests/test_preprocessor.py
-───────────────────────────────────────────────────────────────
-Tests unitaires — Module DataPreprocessor
-Auteur : Alioune Badara Adolphe Faye
+───────────────────────────
+Tests unitaires — Module de prétraitement.
+
+Couverture :
+  • preprocess      : normalisation, scaler retourné, shape conservée
+  • transform_one   : normalisation d'une seule connexion
 """
 
-import pytest
 import numpy as np
-import pandas as pd
+import pytest
+from sklearn.preprocessing import StandardScaler
 
-from src.preprocessing.data_preprocessor import DataPreprocessor
+from detection.preprocessor import preprocess, transform_one
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  FIXTURES
-# ─────────────────────────────────────────────────────────────────────────────
-
-@pytest.fixture
-def sample_df() -> pd.DataFrame:
-    """DataFrame simple avec colonnes num + catégorielles + NaN + inf."""
-    return pd.DataFrame({
-        "col_a":    [1.0, 2.0, np.nan, 4.0, 5.0],
-        "col_b":    [10.0, np.inf, 30.0, 40.0, 50.0],
-        "col_cat":  ["tcp", "udp", "tcp", "icmp", "udp"],
-        "Label":    ["BENIGN", "DoS", "BENIGN", "BENIGN", "DoS"],
-    })
-
+# ──────────────────────────────────────────────
+#  Fixtures
+# ──────────────────────────────────────────────
 
 @pytest.fixture
-def preprocessor() -> DataPreprocessor:
-    return DataPreprocessor(dataset_type="CICIDS2017")
+def sample_data():
+    """Matrice de features brutes 50×6 reproductible."""
+    np.random.seed(42)
+    return np.random.rand(50, 6) * 1000  # échelles variées
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  TESTS
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
+#  preprocess
+# ──────────────────────────────────────────────
 
-class TestDropDuplicates:
+class TestPreprocess:
 
-    def test_removes_exact_duplicates(self, preprocessor):
-        df = pd.DataFrame({
-            "a": [1, 1, 2],
-            "b": [3, 3, 4],
-        })
-        result = preprocessor._drop_duplicates(df)
-        assert len(result) == 2
+    def test_returns_tuple(self, sample_data):
+        """preprocess retourne un tuple (array, scaler)."""
+        result = preprocess(sample_data)
+        assert isinstance(result, tuple) and len(result) == 2
 
-    def test_no_duplicates_unchanged(self, preprocessor):
-        df = pd.DataFrame({"a": [1, 2, 3]})
-        result = preprocessor._drop_duplicates(df)
-        assert len(result) == 3
+    def test_output_shape_preserved(self, sample_data):
+        """La shape de X est conservée après normalisation."""
+        X_scaled, _ = preprocess(sample_data)
+        assert X_scaled.shape == sample_data.shape
 
+    def test_scaler_type(self, sample_data):
+        """Le scaler retourné est bien un StandardScaler."""
+        _, scaler = preprocess(sample_data)
+        assert isinstance(scaler, StandardScaler)
 
-class TestRemoveInfinite:
+    def test_mean_near_zero(self, sample_data):
+        """Après normalisation, chaque feature a une moyenne ≈ 0."""
+        X_scaled, _ = preprocess(sample_data)
+        means = X_scaled.mean(axis=0)
+        np.testing.assert_allclose(means, 0, atol=1e-10,
+            err_msg="La moyenne de chaque feature doit être proche de 0")
 
-    def test_inf_replaced_by_nan(self, preprocessor):
-        df = pd.DataFrame({"a": [1.0, np.inf, -np.inf, 4.0]})
-        result = preprocessor._remove_inf(df)
-        assert not np.any(np.isinf(result["a"].fillna(0).values))
-        assert result["a"].isna().sum() == 2
+    def test_std_near_one(self, sample_data):
+        """Après normalisation, chaque feature a un écart-type ≈ 1."""
+        X_scaled, _ = preprocess(sample_data)
+        stds = X_scaled.std(axis=0)
+        np.testing.assert_allclose(stds, 1, atol=1e-10,
+            err_msg="L'écart-type de chaque feature doit être proche de 1")
 
-    def test_no_inf_unchanged(self, preprocessor):
-        df = pd.DataFrame({"a": [1.0, 2.0, 3.0]})
-        result = preprocessor._remove_inf(df)
-        assert list(result["a"]) == [1.0, 2.0, 3.0]
+    def test_no_nan_output(self, sample_data):
+        """Aucun NaN dans les données normalisées."""
+        X_scaled, _ = preprocess(sample_data)
+        assert not np.isnan(X_scaled).any()
 
+    def test_scaler_is_fitted(self, sample_data):
+        """Le scaler peut transformer de nouvelles données sans erreur."""
+        _, scaler = preprocess(sample_data)
+        new_data = np.random.rand(5, 6) * 1000
+        try:
+            scaler.transform(new_data)
+        except Exception as e:
+            pytest.fail(f"Le scaler fitté ne devrait pas lever d'erreur : {e}")
 
-class TestFitTransform:
-
-    def test_returns_dataframe(self, preprocessor, sample_df):
-        result = preprocessor.fit_transform(sample_df.copy(), label_col="Label")
-        assert isinstance(result, pd.DataFrame)
-
-    def test_label_preserved(self, preprocessor, sample_df):
-        result = preprocessor.fit_transform(sample_df.copy(), label_col="Label")
-        assert "Label" in result.columns
-
-    def test_no_infinite_values_after(self, preprocessor, sample_df):
-        result = preprocessor.fit_transform(sample_df.copy(), label_col="Label")
-        num_cols = result.select_dtypes(include=[np.number]).columns
-        assert not np.any(np.isinf(result[num_cols].fillna(0).values))
-
-    def test_no_nan_in_numeric_after(self, preprocessor, sample_df):
-        result = preprocessor.fit_transform(sample_df.copy(), label_col="Label")
-        num_cols = result.select_dtypes(include=[np.number]).columns
-        assert result[num_cols].isnull().sum().sum() == 0
-
-    def test_categorical_encoded_as_int(self, preprocessor, sample_df):
-        result = preprocessor.fit_transform(sample_df.copy(), label_col="Label")
-        assert result["col_cat"].dtype in [np.int32, np.int64, int]
-
-    def test_fitted_flag_set(self, preprocessor, sample_df):
-        preprocessor.fit_transform(sample_df.copy(), label_col="Label")
-        assert preprocessor._fitted is True
-
-
-class TestTransform:
-
-    def test_transform_before_fit_raises(self, preprocessor, sample_df):
-        with pytest.raises(RuntimeError, match="fit_transform"):
-            preprocessor.transform(sample_df.copy())
-
-    def test_transform_after_fit(self, preprocessor, sample_df):
-        preprocessor.fit_transform(sample_df.copy(), label_col="Label")
-        df_test = sample_df.copy()
-        result = preprocessor.transform(df_test, label_col="Label")
-        assert isinstance(result, pd.DataFrame)
-
-    def test_transform_handles_unseen_categories(self, preprocessor, sample_df):
-        """Une catégorie inconnue ne doit pas faire planter le transform."""
-        preprocessor.fit_transform(sample_df.copy(), label_col="Label")
-        df_test = sample_df.copy()
-        df_test["col_cat"] = ["ftp", "ssh", "ftp", "ftp", "ssh"]  # inconnus
-        result = preprocessor.transform(df_test, label_col="Label")
-        assert isinstance(result, pd.DataFrame)
+    def test_different_scales_equalized(self):
+        """Des features à échelles très différentes sont ramenées à la même."""
+        X = np.column_stack([
+            np.random.normal(0, 1, 100),        # petite échelle
+            np.random.normal(100_000, 50_000, 100),  # grande échelle
+        ])
+        X_scaled, _ = preprocess(X)
+        std_col0 = X_scaled[:, 0].std()
+        std_col1 = X_scaled[:, 1].std()
+        assert abs(std_col0 - std_col1) < 0.1, \
+            "Les deux colonnes doivent avoir des écarts-types similaires après normalisation"
 
 
-class TestSummary:
+# ──────────────────────────────────────────────
+#  transform_one
+# ──────────────────────────────────────────────
 
-    def test_summary_returns_dict(self, preprocessor, sample_df):
-        preprocessor.fit_transform(sample_df.copy(), label_col="Label")
-        s = preprocessor.summary(sample_df)
-        assert isinstance(s, dict)
-        assert "rows" in s
-        assert "columns" in s
-        assert "memory_mb" in s
+class TestTransformOne:
+
+    def test_shape_preserved(self, sample_data):
+        """transform_one préserve la shape (1, n_features)."""
+        _, scaler = preprocess(sample_data)
+        conn = np.random.rand(1, 6) * 1000
+        result = transform_one(scaler, conn)
+        assert result.shape == (1, 6)
+
+    def test_consistent_with_bulk_transform(self, sample_data):
+        """transform_one donne le même résultat que scaler.transform."""
+        _, scaler = preprocess(sample_data)
+        conn = sample_data[0:1]
+        result_one  = transform_one(scaler, conn)
+        result_bulk = scaler.transform(conn)
+        np.testing.assert_array_almost_equal(result_one, result_bulk)
+
+    def test_no_nan_output(self, sample_data):
+        """Aucun NaN dans le résultat de transform_one."""
+        _, scaler = preprocess(sample_data)
+        conn = np.random.rand(1, 6) * 500
+        result = transform_one(scaler, conn)
+        assert not np.isnan(result).any()
