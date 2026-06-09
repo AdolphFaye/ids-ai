@@ -1,0 +1,26 @@
+services:
+
+  trainer:
+    build: .
+    container_name: ids-trainer
+    command: python main.py
+    profiles:
+      - train
+
+  api:
+    build: .
+    container_name: ids-api
+    command: python -m uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    container_name: ids-dashboard
+    command: streamlit run visualizer.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    restart: unless-stopped
