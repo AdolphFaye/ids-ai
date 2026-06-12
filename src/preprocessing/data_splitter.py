@@ -89,7 +89,7 @@ class DataSplitter:
         X_train, X_tmp, y_train, y_tmp = train_test_split(
             X, y,
             test_size=self.val_ratio + self.test_ratio,
-            stratify=y,
+            stratify=None,
             random_state=self.random_state,
         )
 
@@ -98,7 +98,7 @@ class DataSplitter:
         X_val, X_test, y_val, y_test = train_test_split(
             X_tmp, y_tmp,
             test_size=1 - val_ratio_adjusted,
-            stratify=y_tmp,
+            stratify=None,
             random_state=self.random_state,
         )
 

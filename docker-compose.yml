@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml — IDS Data Engineering Pipeline
+# Auteur : Alioune Badara Adolphe Faye
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+services:
+  data-engineering:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ids-data-engineering
+    volumes:
+      - ./data/raw:/app/data/raw          # Données brutes (lecture seule)
+      - ./data/processed:/app/data/processed  # Outputs partagés avec l'équipe
+      - ./logs:/app/logs
+    environment:
+      - PYTHONPATH=/app
+    command: >
+      --dataset CICIDS2017
+      --input   /app/data/raw/cicids2017.csv
+      --name    cicids2017
+    restart: "no"
