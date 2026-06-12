@@ -4,11 +4,14 @@ services:
     build: .
     container_name: ids-trainer
     command: python main.py
+<<<<<<< HEAD
     environment:
       - PYTHONPATH=/app
     volumes:
       - ./data:/app/data
       - ./detection:/app/detection
+=======
+>>>>>>> 209c8695ea292a6c700c62e5178ddbd1f0e4857d
     profiles:
       - train
 
@@ -16,11 +19,14 @@ services:
     build: .
     container_name: ids-api
     command: python -m uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+<<<<<<< HEAD
     environment:
       - PYTHONPATH=/app
     volumes:
       - ./data:/app/data
       - ./detection:/app/detection
+=======
+>>>>>>> 209c8695ea292a6c700c62e5178ddbd1f0e4857d
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -28,6 +34,7 @@ services:
   dashboard:
     build: .
     container_name: ids-dashboard
+<<<<<<< HEAD
     command: streamlit run dashboard_app.py --server.port 8501 --server.address 0.0.0.0
     environment:
       - PYTHONPATH=/app
@@ -35,10 +42,17 @@ services:
       - ./data:/app/data
       - ./detection:/app/detection
       - ./dashboard_app.py:/app/dashboard_app.py
+=======
+    command: streamlit run visualizer.py --server.port 8501 --server.address 0.0.0.0
+>>>>>>> 209c8695ea292a6c700c62e5178ddbd1f0e4857d
     ports:
       - "8501:8501"
     depends_on:
       - api
+<<<<<<< HEAD
     restart: unless-stopped
 
 
+=======
+    restart: unless-stopped
+>>>>>>> 209c8695ea292a6c700c62e5178ddbd1f0e4857d

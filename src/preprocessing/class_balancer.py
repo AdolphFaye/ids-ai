@@ -101,10 +101,16 @@ class ClassBalancer:
             return X, y
 
         self._smote = SMOTE(
+<<<<<<< HEAD
             sampling_strategy=sampling_strategy,
             random_state=self.config["output"]["random_state"],
             n_jobs=-1,
         )
+=======
+    sampling_strategy=sampling_strategy,
+    random_state=self.config["output"]["random_state"],
+)
+>>>>>>> 209c8695ea292a6c700c62e5178ddbd1f0e4857d
 
         cols = X.columns.tolist()
         X_arr, y_arr = self._smote.fit_resample(X.values, y.values)
