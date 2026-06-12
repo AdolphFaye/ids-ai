@@ -1,32 +1,24 @@
-# ─── Data Engineering Pipeline ───────────────────────────────────────────────
-# Alioune Badara Adolphe Faye — Responsable Data Engineering
-# IDS basé sur IA Comportementale — 2026
-
-# Core
 pandas>=2.1.0
 numpy>=1.26.0
 scipy>=1.11.0
-
-# PCAP parsing
+pyarrow>=14.0.0
+fastparquet>=2023.10.0
+scikit-learn>=1.4.0
+imbalanced-learn>=0.11.0
+xgboost>=2.0.0
+joblib>=1.4.0
+matplotlib>=3.9.0
+seaborn>=0.13.2
+plotly>=5.22.0
 scapy>=2.5.0
 pyshark>=0.6.0
-
-# Feature Engineering
-scikit-learn>=1.4.0
-imbalanced-learn>=0.11.0   # SMOTE pour déséquilibre des classes
-
-# Sérialisation & I/O
-pyarrow>=14.0.0            # Format parquet rapide
-fastparquet>=2023.10.0
-
-# Qualité & Validation
 great-expectations>=0.18.0
-
-# Tests
+fastapi>=0.111.0
+uvicorn>=0.29.0
+pydantic>=2.7.1
+streamlit>=1.35.0
 pytest>=7.4.0
 pytest-cov>=4.1.0
-
-# Utilitaires
 tqdm>=4.66.0
 pyyaml>=6.0.1
 loguru>=0.7.2
