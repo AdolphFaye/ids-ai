@@ -100,31 +100,56 @@ def load_models():
 
 
 # ──────────────────────────────────────────────────────────────
-# Chargement des données
+# Chargement des données (Version Sécurisée Absolue v2)
 # ──────────────────────────────────────────────────────────────
 def load_data(train_path, test_path):
-
     from sklearn.preprocessing import LabelEncoder
 
-    train = pd.read_csv(train_path, names=COLUMNS)
-    test = pd.read_csv(test_path, names=COLUMNS)
+    # Lecture selon l'extension
+    if str(train_path).endswith('.parquet'):
+        train = pd.read_parquet(train_path)
+    else:
+        train = pd.read_csv(train_path, names=COLUMNS)
 
-    train["is_attack"] = train["label"].apply(
-        lambda x: 0 if x == "normal" else 1
-    )
+    if str(test_path).endswith('.parquet'):
+        test = pd.read_parquet(test_path)
+    else:
+        test = pd.read_csv(test_path, names=COLUMNS)
 
-    test["is_attack"] = test["label"].apply(
-        lambda x: 0 if x == "normal" else 1
-    )
+    # Alignement strict des colonnes
+    train = train.reindex(columns=COLUMNS)
+    test = test.reindex(columns=COLUMNS)
 
+    # Gestion des étiquettes cibles
+    if "is_attack" not in train.columns:
+        train["is_attack"] = train["label"].apply(lambda x: 0 if str(x).strip() == "normal" else 1)
+    if "is_attack" not in test.columns:
+        test["is_attack"] = test["label"].apply(lambda x: 0 if str(x).strip() == "normal" else 1)
+
+    # Encodage forcé basé sur l'analyse de type (object, string ou texte brut)
     le = LabelEncoder()
-
     for col in ["protocol_type", "service", "flag"]:
-        train[col] = le.fit_transform(train[col])
-        test[col] = le.transform(test[col])
+        # Conversion systématique en chaînes de caractères pour l'analyse de texte
+        train_strs = train[col].astype(str).str.strip().values
+        test_strs = test[col].astype(str).str.strip().values
+        
+        # Détection de la présence de texte non numérique (ex: 'tcp', 'private', 'SF')
+        has_text_train = any(not x.replace('.', '', 1).isdigit() for x in train_strs[:100])
+        has_text_test = any(not x.replace('.', '', 1).isdigit() for x in test_strs[:100])
+        
+        if has_text_train or has_text_test:
+            # Ajustement global sur l'ensemble complet des modalités textuelles
+            le.fit(np.concatenate([train_strs, test_strs]))
+            train[col] = le.transform(train_strs)
+            test[col] = le.transform(test_strs)
+        else:
+            # Si ce sont déjà des nombres sous forme de chaînes, simple conversion numérique
+            train[col] = pd.to_numeric(train[col], errors='coerce').fillna(0)
+            test[col] = pd.to_numeric(test[col], errors='coerce').fillna(0)
 
-    X_test = test[FEATURES].values
-    y_test = test["is_attack"].values
+    # Extraction finale convertie explicitement au format numérique float64
+    X_test = test[FEATURES].copy().values.astype(np.float64)
+    y_test = test["is_attack"].values.astype(np.int64)
 
     return test, X_test, y_test
 
@@ -205,7 +230,11 @@ if run_btn:
     scaler = models["scaler"]
 
     if scaler is not None:
-        X_test = scaler.transform(X_test)
+        try:
+            X_test = scaler.transform(X_test)
+        except Exception as e:
+            st.error(f"Erreur lors de la mise à l'échelle (Scaler) : {e}")
+            st.stop()
 
     # Choix du modèle
     if model_choice == "Isolation Forest":
