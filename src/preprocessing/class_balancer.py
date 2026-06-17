@@ -88,7 +88,7 @@ class ClassBalancer:
 
         # Calculer le sampling_strategy adaptatif
         majority_count = max(dist_before.values())
-        target_count   = int(majority_count * self.sampling_ratio)
+        target_count = int(majority_count * self.sampling_ratio)
 
         sampling_strategy = {
             cls: max(count, target_count)
@@ -101,16 +101,9 @@ class ClassBalancer:
             return X, y
 
         self._smote = SMOTE(
-<<<<<<< HEAD
             sampling_strategy=sampling_strategy,
             random_state=self.config["output"]["random_state"],
-            n_jobs=-1,
         )
-=======
-    sampling_strategy=sampling_strategy,
-    random_state=self.config["output"]["random_state"],
-)
->>>>>>> 209c8695ea292a6c700c62e5178ddbd1f0e4857d
 
         cols = X.columns.tolist()
         X_arr, y_arr = self._smote.fit_resample(X.values, y.values)
